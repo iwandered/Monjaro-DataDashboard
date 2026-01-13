@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="text">#FFadadae</color>
+    <color name="warning">#639D00</color>
+    <color name="warningPressed">#80639D00</color>
+    <color name="tabItem">#b3ffffff</color>
+    <color name="select">#FF313339</color>
+    <color name="transparent">#00FFFFFF</color>
+    <color name="orange">#FFA500</color>
+
+    <!-- 仪表盘背景色 -->
+    <color name="dashboard_background">#040608</color>
+    <!-- 顶部蓝色横条 -->
+    <color name="top_blue_bar">#0D6EBD</color>
+    <!-- 胎温颜色 -->
+    <color name="tire_temperature">#FF9900</color>
+    <!-- 胎压颜色 -->
+    <color name="tire_pressure">#FFFFFF</color>
+    <!-- 油耗颜色 -->
+    <color name="fuel_consumption">#00FF00</color>
+    <!-- 转向灯颜色 -->
+    <color name="turn_signal">#00FF00</color>
+    <!-- 主要文本颜色 -->
+    <color name="main_text">#FFFFFF</color>
+    <!-- 驾驶模式文本颜色 -->
+    <color name="driving_mode">#FFFFFF</color>
+    <!-- 转速文本颜色 -->
+    <color name="rpm_text">#FFFFFF</color>
+    <!-- 车速文本颜色 -->
+    <color name="speed_text">#FFFFFF</color>
+    <!-- 档位文本颜色 -->
+    <color name="gear_text">#FFFFFF</color>
+    <!-- 油量文本颜色 -->
+    <color name="fuel_text">#FFFFFF</color>
+    <!-- 内温文本颜色 -->
+    <color name="int_temp_text">#FFFFFF</color>
+    <!-- 外温文本颜色 -->
+    <color name="ambient_temp_text">#FFFFFF</color>
+    <!-- 机油文本颜色 -->
+    <color name="oil_text">#FFFFFF</color>
+    <!-- 空调风量文本颜色 -->
+    <color name="fan_speed_text">#FFFFFF</color>
+    <!-- 出风方向文本颜色 -->
+    <color name="blowing_mode_text">#FFFFFF</color>
+    <!-- 循环状态文本颜色 -->
+    <color name="circulation_text">#FFFFFF</color>
+    <!-- AC状态文本颜色 -->
+    <color name="ac_text">#FFFFFF</color>
+    <!-- 日期时间文本颜色 -->
+    <color name="datetime_text">#00FF00</color>
+    <!-- 里程文本颜色 -->
+    <color name="odometer_text">#FFFFFF</color>
+
+    <!-- 歌曲文本颜色 -->
+    <color name="media_text">#FFFFFF</color>
+
+    <!-- 艺术家文本颜色 -->
+    <color name="media_artist_text">#FFFFFF</color>
+
+    <!-- 座椅状态颜色 -->
+    <color name="seat_heating">#FF4600</color>    <!-- 橙色 -->
+    <color name="seat_ventilation">#00C5FF</color> <!-- 蓝色 -->
+    <color name="seat_both">#FFA500</color>       <!-- 同时加热通风时用橙色 -->
+    <color name="seat_default">#FFFFFF</color>    <!-- 默认白色 -->
+
+    <!-- 驾驶模式颜色 -->
+    <color name="comfort_mode_color">#87CEEB</color>     <!-- 浅蓝色 -->
+    <color name="snow_mode_color">#FFFFFF</color>       <!-- 白色 -->
+    <color name="adaptive_mode_color">#FFA500</color>    <!-- 橙色 -->
+    <color name="dynamic_mode_color">#FF0000</color>     <!-- 红色 -->
+    <color name="eco_mode_color">#00FF00</color>        <!-- 绿色 -->
+    <color name="offroad_mode_color">#800080</color>    <!-- 紫色 -->
+    <color name="unknown_mode_color">#FFFFFF</color>    <!-- 未知模式默认白色 -->
+</resources>

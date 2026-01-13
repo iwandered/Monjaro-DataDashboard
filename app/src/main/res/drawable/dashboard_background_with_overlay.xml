@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 第一层：半透明背景（放在最底层） -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#80000000" /> <!-- 25%透明度 -->
+            <corners android:radius="0dp" />
+        </shape>
+    </item>
+
+    <!-- 第二层：原始背景图片（放在上层，部分透明显示下层） -->
+    <item>
+        <bitmap
+            android:src="@drawable/car_dashboard_bg"
+            android:gravity="fill"
+            android:alpha="0.65" /> <!-- 图片本身85%透明度 -->
+    </item>
+</layer-list>

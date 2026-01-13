@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">MC自制仪表</string>
+    <string name="service_init_name">MConfig 初始化中...</string>
+    <string name="warning_accessibility">欢迎行驶在通往幸福的道路上，愿您一路平安！</string>
+
+    <string name="files_handler">MConfig</string>
+    <string name="service_started">MConfig... 已启动</string>
+    <string name="restore_drive_mode">MConfig... 恢复驾驶模式</string>
+    <string name="save_drive_mode">MConfig... 保存驾驶模式</string>
+
+    <string name="enable_service"></string>
+    <string name="ignition_mode_dot">点火模式：</string>
+    <string name="startstop_mode_dot">启停模式：</string>
+    <string name="auto_speed_dot">km/h</string>
+    <string name="rpm_value_dot">rpm</string>
+    <string name="ambient_temp_dot">外温</string>
+    <string name="int_temp_dot">内温</string>
+    <string name="fuel_value_dot">燃油</string>
+    <string name="oil_level_dot">机油：</string>
+    <string name="seat_pass_status_dot">乘客座位：</string>
+    <string name="gear_status_dot">档位</string>
+
+
+    <!-- 媒体通知监听器相关字符串 -->
+    <string name="media_notification_listener_label">媒体通知监听</string>
+    <string name="media_notification_listener_description">用于显示当前播放的媒体信息</string>
+
+</resources>

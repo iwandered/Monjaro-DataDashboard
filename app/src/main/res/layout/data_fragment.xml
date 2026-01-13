@@ -1,0 +1,732 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    android:id="@+id/scrollView"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    android:paddingTop="0dp">
+
+    <!-- 根布局容器 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 第一行：胎压胎温、左转向灯、媒体信息、右转向灯、油耗信息 -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="78dp"
+            android:layout_marginTop="0dp"
+            android:layout_marginBottom="0dp"
+            android:padding="0dp">
+
+            <!-- 媒体信息容器 - 绝对居中 -->
+            <LinearLayout
+                android:id="@+id/media_info_container"
+                android:layout_width="192dp"
+                android:layout_height="50dp"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="1dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="2dp"
+                android:visibility="invisible">
+
+                <TextView
+                    android:id="@+id/tv_media_artist"
+                    android:layout_width="192dp"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="marquee"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:gravity="center"
+                    android:marqueeRepeatLimit="marquee_forever"
+                    android:scrollHorizontally="true"
+                    android:singleLine="true"
+                    android:text=""
+                    android:textColor="@color/media_artist_text"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_media_title"
+                    android:layout_width="192dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="marquee"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:gravity="center"
+                    android:marqueeRepeatLimit="marquee_forever"
+                    android:scrollHorizontally="true"
+                    android:singleLine="true"
+                    android:text=""
+                    android:textColor="@color/media_text"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 左转向灯容器 - 紧贴媒体信息左侧 -->
+            <LinearLayout
+                android:id="@+id/left_turn_container"
+                android:layout_width="25dp"
+                android:layout_height="30dp"
+                android:layout_toStartOf="@id/media_info_container"
+                android:layout_marginEnd="0dp"
+                android:layout_marginTop="15dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_left_turn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="◀"
+                    android:textColor="@color/turn_signal"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:visibility="invisible" />
+            </LinearLayout>
+
+            <!-- 胎压胎温容器 - 紧贴左转向灯容器左侧 -->
+            <GridLayout
+                android:id="@+id/grid_tire_info"
+                android:layout_width="115dp"
+                android:layout_height="40dp"
+                android:layout_toStartOf="@id/left_turn_container"
+                android:layout_marginEnd="0dp"
+                android:layout_marginTop="36dp"
+                android:alignmentMode="alignMargins"
+                android:columnCount="4"
+                android:columnOrderPreserved="false"
+                android:padding="0dp"
+                android:rowCount="2">
+
+                <!-- 第一列：原第二列（左前胎温、左后胎温） -->
+                <TextView
+                    android:id="@+id/tv_tire_fl_temp"
+                    android:layout_width="20dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="0"
+                    android:layout_column="0"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_temperature"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_tire_rl_temp"
+                    android:layout_width="20dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="1"
+                    android:layout_column="0"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_temperature"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <!-- 第二列：原第四列（右前胎温、右后胎温） -->
+                <TextView
+                    android:id="@+id/tv_tire_fr_temp"
+                    android:layout_width="28dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="0"
+                    android:layout_column="1"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_temperature"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_tire_rr_temp"
+                    android:layout_width="28dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="1"
+                    android:layout_column="1"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_temperature"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <!-- 第三列：原第一列（左前胎压、左后胎压） -->
+                <TextView
+                    android:id="@+id/tv_tire_fl_pressure"
+                    android:layout_width="30dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="0"
+                    android:layout_column="2"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_pressure"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_tire_rl_pressure"
+                    android:layout_width="30dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="1"
+                    android:layout_column="2"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_pressure"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <!-- 第四列：原第三列（右前胎压、右后胎压） -->
+                <TextView
+                    android:id="@+id/tv_tire_fr_pressure"
+                    android:layout_width="28dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="0"
+                    android:layout_column="3"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_pressure"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_tire_rr_pressure"
+                    android:layout_width="28dp"
+                    android:layout_height="wrap_content"
+                    android:layout_row="1"
+                    android:layout_column="3"
+                    android:layout_margin="1dp"
+                    android:text="--"
+                    android:textColor="@color/tire_pressure"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </GridLayout>
+
+            <!-- 右转向灯容器 - 紧贴媒体信息右侧 -->
+            <LinearLayout
+                android:id="@+id/right_turn_container"
+                android:layout_width="25dp"
+                android:layout_height="30dp"
+                android:layout_toEndOf="@id/media_info_container"
+                android:layout_marginStart="0dp"
+                android:layout_marginTop="15dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_right_turn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="▶"
+                    android:textColor="@color/turn_signal"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:visibility="invisible" />
+            </LinearLayout>
+
+            <!-- 油耗信息容器 - 紧贴右转向灯容器右侧 -->
+            <LinearLayout
+                android:id="@+id/fuel_consumption_container"
+                android:layout_width="45dp"
+                android:layout_height="50dp"
+                android:layout_toEndOf="@id/right_turn_container"
+                android:layout_marginStart="0dp"
+                android:layout_marginTop="28dp"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="1dp">
+
+                <TextView
+                    android:id="@+id/tv_instant_fuel"
+                    android:layout_width="45dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="--"
+                    android:textColor="@color/fuel_consumption"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_avg_fuel"
+                    android:layout_width="45dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text=""
+                    android:textColor="@color/orange"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:visibility="invisible" />
+            </LinearLayout>
+            <!-- 红绿灯倒计时容器 - 紧贴油耗信息容器右侧 -->
+            <LinearLayout
+                android:id="@+id/traffic_light_container"
+                android:layout_width="70dp"
+                android:layout_height="50dp"
+                android:layout_toEndOf="@id/fuel_consumption_container"
+                android:layout_marginStart="5dp"
+                android:layout_marginTop="28dp"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:padding="2dp"
+                android:visibility="invisible">
+
+                <ru.monjaro.mconfig.TrafficLightView
+                    android:id="@+id/traffic_light_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+            </LinearLayout>
+        </RelativeLayout>
+
+        <!-- 第二行：原有第一行（中间六项信息） -->
+        <!-- 保持原有第二行内容不变 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:paddingTop="0dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <LinearLayout
+                android:layout_width="371dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <!-- 主要数据容器 -->
+                <LinearLayout
+                    android:layout_width="677dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <!-- 左侧四个主要数据项 -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="100dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+
+                        <!-- 驾驶模式 -->
+                        <TextView
+                            android:id="@+id/tv_driving_mode_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="50dp"
+                            android:layout_marginEnd="5dp"
+                            android:layout_marginBottom="20dp"
+                            android:gravity="start"
+                            android:text="未知"
+                            android:textColor="@color/driving_mode"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <!-- 转速 -->
+                        <LinearLayout
+                            android:id="@+id/rpm_layout"
+                            android:layout_width="90dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="0dp">
+
+                            <TextView
+                                android:id="@+id/rpmValueTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="rpm"
+                                android:textColor="@color/rpm_text"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/rpmValue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="0"
+                                android:textColor="@color/rpm_text"
+                                android:textSize="30sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                        <!-- 车速 -->
+                        <LinearLayout
+                            android:id="@+id/speed_layout"
+                            android:layout_width="90dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="0dp">
+
+                            <TextView
+                                android:id="@+id/carSpeedTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="km/h"
+                                android:textColor="@color/speed_text"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/carSpeed"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="0dp"
+                                android:text="0"
+                                android:textColor="@color/speed_text"
+                                android:textSize="32sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                        <!-- 档位 -->
+                        <LinearLayout
+                            android:id="@+id/gear_layout"
+                            android:layout_width="88dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="1dp">
+
+                            <TextView
+                                android:id="@+id/gearStatus"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="P"
+                                android:textColor="@color/gear_text"
+                                android:textSize="38sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                        <!-- 油量 -->
+                        <LinearLayout
+                            android:id="@+id/fuel_layout"
+                            android:layout_width="90dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="18dp">
+
+                            <TextView
+                                android:id="@+id/FuelLevelTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="油量"
+                                android:textColor="@color/fuel_text"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/FuelLevel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="0dp"
+                                android:text="0"
+                                android:textColor="@color/fuel_text"
+                                android:textSize="20sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                    <!-- 风量和风向显示容器 -->
+                    <LinearLayout
+                        android:layout_width="90dp"
+                        android:layout_height="100dp"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginTop="5dp"
+                        android:layout_marginBottom="5dp"
+                        android:gravity="start"
+                        android:orientation="vertical">
+
+                        <!-- 出风方向显示 -->
+                        <LinearLayout
+                            android:layout_width="90dp"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="2dp">
+
+                            <TextView
+                                android:id="@+id/tv_blowing_mode"
+                                android:layout_width="90dp"
+                                android:layout_height="wrap_content"
+                                android:text="风向: --"
+                                android:textColor="@color/blowing_mode_text"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                        <!-- 风量显示 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="2dp">
+
+                            <TextView
+                                android:id="@+id/tv_fan_speed"
+                                android:layout_width="90dp"
+                                android:layout_height="wrap_content"
+                                android:text="风量: --"
+                                android:textColor="@color/fan_speed_text"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <!-- 循环状态和AC开关显示 -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="20dp"
+                                android:orientation="horizontal"
+                                android:paddingTop="2dp"
+                                android:paddingBottom="2dp">
+
+                                <!-- AC状态显示 -->
+                                <TextView
+                                    android:id="@+id/tv_ac_status"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:gravity="start"
+                                    android:text="AC: --"
+                                    android:textColor="@color/ac_text"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+
+                                <!-- 循环状态显示 -->
+                                <TextView
+                                    android:id="@+id/tv_circulation_status"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="0.8"
+                                    android:text="R: --"
+                                    android:textColor="@color/circulation_text"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:gravity="start" />
+
+
+
+                            </LinearLayout>
+
+                            <!-- 座椅加热和通风状态显示 -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:paddingTop="2dp"
+                                android:paddingBottom="2dp">
+
+                                <!-- 驾驶员座椅状态 -->
+                                <TextView
+                                    android:id="@+id/tv_driver_seat_status"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="--"
+                                    android:textColor="@color/seat_default"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:gravity="center" />
+
+                                <!-- 副驾驶座椅状态 -->
+                                <TextView
+                                    android:id="@+id/tv_passenger_seat_status"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="--"
+                                    android:textColor="@color/seat_default"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:gravity="center" />
+
+                            </LinearLayout>
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                    <!-- 修改右侧温度数据区域 -->
+                    <LinearLayout
+                        android:layout_width="78dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginTop="0dp"
+                        android:gravity="start"
+                        android:orientation="vertical">
+
+                        <!-- 机油数据 -->
+                        <LinearLayout
+                            android:id="@+id/oil_level_layout"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="2dp">
+
+                            <TextView
+                                android:id="@+id/oil_level_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="1dp"
+                                android:text="机油:"
+                                android:textColor="@color/oil_text"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/OilLevel"
+                                android:layout_width="40dp"
+                                android:layout_height="wrap_content"
+                                android:text=" --"
+                                android:textColor="@color/oil_text"
+                                android:textSize="12sp" />
+
+                        </LinearLayout>
+
+                        <!-- 内温 -->
+                        <LinearLayout
+                            android:id="@+id/int_temp_layout"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="2dp">
+
+                            <TextView
+                                android:id="@+id/intTempTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="4dp"
+                                android:text="内温:"
+                                android:textColor="@color/int_temp_text"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/intTemp"
+                                android:layout_width="40dp"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/int_temp_text"
+                                android:textSize="12sp"
+                                android:textStyle="normal" />
+
+                        </LinearLayout>
+
+                        <!-- 外温 -->
+                        <LinearLayout
+                            android:id="@+id/ambient_temp_layout"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="2dp">
+
+                            <TextView
+                                android:id="@+id/aTempTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="4dp"
+                                android:text="外温:"
+                                android:textColor="@color/ambient_temp_text"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/aTemp"
+                                android:layout_width="40dp"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/ambient_temp_text"
+                                android:textSize="12sp"
+                                android:textStyle="normal" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第三行：原有第二行（时间和日期显示区域） -->
+        <LinearLayout
+            android:id="@+id/date_time_layout"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="-28dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="1dp">
+
+            <!-- 日期和星期容器 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- 日期显示 -->
+                <TextView
+                    android:id="@+id/tvDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="34dp"
+                    android:text="日期"
+                    android:textColor="@color/odometer_text"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <!-- 时间显示 -->
+            <TextView
+                android:id="@+id/tvTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="27dp"
+                android:layout_marginEnd="30dp"
+                android:gravity="center_vertical"
+                android:text="时间"
+                android:textColor="@color/datetime_text"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <!-- 总里程显示 -->
+            <TextView
+                android:id="@+id/tv_odometer"
+                android:layout_width="90dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:layout_marginStart="15dp"
+                android:text="- - km"
+                android:textColor="@color/odometer_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>
