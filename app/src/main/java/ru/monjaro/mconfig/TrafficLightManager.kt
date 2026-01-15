@@ -9,12 +9,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import org.json.JSONObject
 import kotlin.math.max
 
 /**
  * 红绿灯倒计时管理器
- * 负责监听高德地图车机版的红绿灯广播，包括导航模式和巡航模式
+ * 专门用于处理高德地图车机版的红绿灯广播数据
+ * 基于之前分析的高德实现方案
  */
 class TrafficLightManager(
     private val context: Context,
@@ -23,61 +23,57 @@ class TrafficLightManager(
     companion object {
         // 高德地图广播Action
         private const val AMAP_BROADCAST_ACTION = "AUTONAVI_STANDARD_BROADCAST_SEND"
-        private const val AMAP_BROADCAST_CRUISE_ACTION = "AUTONAVI_STANDARD_BROADCAST_RECV"
-        private const val AMAP_BROADCAST_XM = "com.autonavi.xm.action.BROADCAST"
-        private const val AMAP_BROADCAST_MINIMAP = "com.autonavi.minimap.action.BROADCAST"
 
         // 红绿灯信息类型
         private const val KEY_TYPE_TRAFFIC_LIGHT = 60073
-        private const val KEY_TYPE_CRUISE_TRAFFIC_LIGHT = 10001 // 巡航模式可能的值
 
-        // 字段名称
+        // 字段名称（根据高德文档）
+        private const val KEY_TYPE = "KEY_TYPE"
         private const val KEY_TRAFFIC_LIGHT_STATUS = "trafficLightStatus"
         private const val KEY_RED_LIGHT_COUNTDOWN = "redLightCountDownSeconds"
-        private const val KEY_GREEN_LIGHT_COUNTDOWN = "greenLightCountDownSeconds"
+        private const val KEY_GREEN_LIGHT_COUNTDOWN = "greenLightLastSecond"
         private const val KEY_DIRECTION = "dir"
         private const val KEY_WAIT_ROUND = "waitRound"
-        private const val KEY_JSON_DATA = "json"
-        private const val KEY_RAW_DATA = "data"
 
-        // 巡航模式特定字段
-        private const val KEY_CRUISE_TRAFFIC_LIGHT = "traffic_light"
-        private const val KEY_CRUISE_COUNTDOWN = "countdown"
-        private const val KEY_CRUISE_STATUS = "status"
-        private const val KEY_CRUISE_COLOR = "color"
-        private const val KEY_CRUISE_TIME = "time"
-
-        // 状态映射
+        // 状态映射（高德状态 -> 我们自定义状态）
         const val STATUS_NONE = 0
         const val STATUS_GREEN = 1
         const val STATUS_RED = 2
         const val STATUS_YELLOW = 3
-        const val STATUS_FLASHING_YELLOW = 4 // 黄灯闪烁
 
-        // 方向映射
-        const val DIRECTION_STRAIGHT = 0   // 直行
-        const val DIRECTION_LEFT = 1       // 左转
-        const val DIRECTION_RIGHT = 2      // 右转
-        const val DIRECTION_STRAIGHT_LEFT = 3  // 直行+左转
-        const val DIRECTION_STRAIGHT_RIGHT = 4 // 直行+右转
-        const val DIRECTION_ALL = 5        // 所有方向
+        // 方向映射（高德方向 -> 我们自定义方向）
+        const val DIRECTION_STRAIGHT = 0   // 直行（对应高德4）
+        const val DIRECTION_LEFT = 1       // 左转（对应高德1）
+        const val DIRECTION_RIGHT = 2      // 右转（对应高德2）
 
-        // 颜色映射
-        private const val COLOR_GREEN = 1
-        private const val COLOR_RED = 2
-        private const val COLOR_YELLOW = 3
+        // 高德原始状态值
+        private const val AMAP_STATUS_RED = 1        // 红灯
+        private const val AMAP_STATUS_GREEN = 2      // 绿灯
+        private const val AMAP_STATUS_YELLOW = 3     // 黄灯
+        private const val AMAP_STATUS_GREEN_COUNTDOWN = 4  // 绿灯倒计时
+        private const val AMAP_STATUS_TRANSITION = -1      // 过渡状态（显示黄灯）
+
+        // 高德原始方向值
+        private const val AMAP_DIRECTION_LEFT = 1    // 左转
+        private const val AMAP_DIRECTION_RIGHT = 2   // 右转
+        private const val AMAP_DIRECTION_STRAIGHT = 4 // 直行
     }
 
     /**
-     * 红绿灯信息数据类
+     * 红绿灯信息数据类（完全按照之前分析的结构）
      */
     data class TrafficLightInfo(
-        var status: Int = STATUS_NONE,           // 红绿灯状态
-        var countdown: Int = 0,                  // 倒计时秒数
-        var direction: Int = DIRECTION_STRAIGHT, // 方向
+        var status: Int = STATUS_NONE,           // 红绿灯状态（映射后的状态）
+        var countdown: Int = 0,                  // 倒计时秒数（主要使用redLightCountDownSeconds）
+        var direction: Int = DIRECTION_STRAIGHT, // 方向（映射后的方向）
         var waitRound: Int = 0,                  // 等待轮次
-        var source: String = "unknown",          // 数据来源: navigation/cruise/test
-        var timestamp: Long = System.currentTimeMillis() // 接收时间戳
+        var source: String = "amap",             // 数据来源
+        var timestamp: Long = System.currentTimeMillis(), // 接收时间戳
+
+        // 原始高德数据（用于调试）
+        var amapStatus: Int = 0,                 // 高德原始状态
+        var amapDirection: Int = 0,              // 高德原始方向
+        var greenLast: Int = 0                   // 绿灯最后秒数
     ) {
         // 判断是否有效数据
         fun isValid(): Boolean {
@@ -93,6 +89,9 @@ class TrafficLightManager(
     private var broadcastReceiver: BroadcastReceiver? = null
     private var isRegistered = false
     private val handler = Handler(Looper.getMainLooper())
+
+    // 历史方向缓存（应对dir=0的情况）
+    private var lastValidDirection = 0
 
     // 最后接收到的有效数据时间戳
     private var lastValidDataTime: Long = 0
@@ -114,6 +113,8 @@ class TrafficLightManager(
                 if (currentTime - lastValidDataTime > DATA_EXPIRE_TIME) {
                     handler.post {
                         updateCallback(null)
+                        // 重置历史方向
+                        lastValidDirection = 0
                     }
                 }
 
@@ -125,12 +126,8 @@ class TrafficLightManager(
         }
     }
 
-    // 广播拦截日志（调试用）
-    private val broadcastLog = mutableListOf<String>()
-    private val MAX_LOG_SIZE = 50
-
     /**
-     * 注册广播接收器并开始监听
+     * 注册广播接收器并开始监听（只监听高德导航模式广播）
      */
     fun start() {
         try {
@@ -144,66 +141,17 @@ class TrafficLightManager(
                     if (intent == null) return
 
                     val action = intent.action ?: ""
-                    val extras = intent.extras
 
-                    // 记录广播日志（调试用）
-                    addBroadcastLog("收到广播: $action")
-                    if (extras != null) {
-                        val keys = extras.keySet()
-                        keys.forEach { key ->
-                            val value = extras.get(key)
-                            addBroadcastLog("  $key = $value")
-                        }
+                    // 只处理高德地图广播
+                    if (action != AMAP_BROADCAST_ACTION) {
+                        return
                     }
 
-                    // 根据Action处理不同类型的广播
-                    when {
-                        action == AMAP_BROADCAST_ACTION -> {
-                            parseNavigationTrafficLightData(intent)
-                        }
-                        action == AMAP_BROADCAST_CRUISE_ACTION -> {
-                            parseCruiseTrafficLightData(intent)
-                        }
-                        action.contains("autonavi", ignoreCase = true) -> {
-                            parseGenericTrafficLightData(intent)
-                        }
-                        else -> {
-                            // 其他广播，尝试解析红绿灯数据
-                            parseGenericTrafficLightData(intent)
-                        }
-                    }
+                    parseAmapBroadcast(intent)
                 }
             }
 
-            val filter = IntentFilter().apply {
-                // 导航模式广播
-                addAction(AMAP_BROADCAST_ACTION)
-
-                // 巡航模式广播
-                try {
-                    addAction(AMAP_BROADCAST_CRUISE_ACTION)
-                } catch (e: Exception) {
-                    Log.w("TrafficLightManager", "无法注册巡航广播: ${e.message}")
-                }
-
-                // 其他可能的高德广播
-                try {
-                    addAction(AMAP_BROADCAST_XM)
-                    addAction(AMAP_BROADCAST_MINIMAP)
-                } catch (e: Exception) {
-                    Log.w("TrafficLightManager", "无法注册其他高德广播: ${e.message}")
-                }
-
-                // 尝试捕获所有可能的广播
-                if (BuildConfig.DEBUG) {
-                    try {
-                        addAction("android.intent.action.MEDIA_BUTTON")
-                        addAction(Intent.ACTION_MEDIA_BUTTON)
-                    } catch (e: Exception) {
-                        // 忽略错误
-                    }
-                }
-            }
+            val filter = IntentFilter(AMAP_BROADCAST_ACTION)
 
             // 注册广播接收器
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -221,7 +169,7 @@ class TrafficLightManager(
             // 启动心跳检查
             handler.post(heartbeatRunnable)
 
-            Log.d("TrafficLightManager", "广播接收器已注册，支持导航和巡航模式")
+            Log.d("TrafficLightManager", "高德红绿灯广播接收器已注册")
 
         } catch (e: Exception) {
             Log.e("TrafficLightManager", "注册广播接收器失败", e)
@@ -229,399 +177,148 @@ class TrafficLightManager(
     }
 
     /**
-     * 解析导航模式红绿灯数据
+     * 解析高德地图广播（严格按照之前分析的格式）
      */
-    private fun parseNavigationTrafficLightData(intent: Intent) {
+    private fun parseAmapBroadcast(intent: Intent) {
         try {
             val extras = intent.extras ?: return
 
             // 检查KEY_TYPE
-            val keyType = extras.getInt("KEY_TYPE", -1)
-            if (keyType != KEY_TYPE_TRAFFIC_LIGHT && keyType != KEY_TYPE_CRUISE_TRAFFIC_LIGHT) {
+            val keyType = getIntFromBundle(extras, KEY_TYPE, -1)
+            if (keyType != KEY_TYPE_TRAFFIC_LIGHT) {
+                // 不是红绿灯数据，忽略
                 return
             }
 
-            // 尝试从json字段获取数据
-            var jsonString = extras.getString(KEY_JSON_DATA)
-            if (jsonString.isNullOrEmpty()) {
-                jsonString = extras.getString(KEY_RAW_DATA)
+            // 解析原始数据
+            val amapStatus = getIntFromBundle(extras, KEY_TRAFFIC_LIGHT_STATUS, 0)
+            val redCountdown = getIntFromBundle(extras, KEY_RED_LIGHT_COUNTDOWN, 0)
+            val greenLast = getIntFromBundle(extras, KEY_GREEN_LIGHT_COUNTDOWN, 0)
+            val amapDirection = getIntFromBundle(extras, KEY_DIRECTION, 0)
+            val waitRound = getIntFromBundle(extras, KEY_WAIT_ROUND, 0)
+
+            // 记录日志
+            if (BuildConfig.DEBUG) {
+                Log.d("TrafficLightManager", "收到高德红绿灯: " +
+                        "status=$amapStatus, " +
+                        "red=$redCountdown, " +
+                        "greenLast=$greenLast, " +
+                        "dir=$amapDirection, " +
+                        "wait=$waitRound")
             }
 
-            if (jsonString.isNullOrEmpty()) {
-                // 尝试直接从bundle中读取字段
-                parseNavigationBundleData(extras)
-                return
-            }
+            // 处理方向逻辑
+            val direction = handleDirection(amapDirection)
 
-            // 解析JSON数据
-            try {
-                val jsonObject = JSONObject(jsonString)
-                parseNavigationJsonData(jsonObject, "navigation")
-            } catch (e: Exception) {
-                Log.w("TrafficLightManager", "JSON解析失败，尝试直接解析Bundle", e)
-                parseNavigationBundleData(extras)
-            }
+            // 映射状态
+            val status = mapAmapStatus(amapStatus)
+
+            // 确定倒计时值
+            val countdown = determineCountdown(amapStatus, redCountdown, greenLast)
+
+            // 创建红绿灯信息
+            val trafficLightInfo = TrafficLightInfo(
+                status = status,
+                countdown = countdown,
+                direction = direction,
+                waitRound = waitRound,
+                source = "amap_navigation",
+                timestamp = System.currentTimeMillis(),
+                amapStatus = amapStatus,
+                amapDirection = amapDirection,
+                greenLast = greenLast
+            )
+
+            // 处理红绿灯信息
+            processTrafficLightInfo(trafficLightInfo)
 
         } catch (e: Exception) {
-            Log.e("TrafficLightManager", "解析导航红绿灯数据失败", e)
+            Log.e("TrafficLightManager", "解析高德广播失败", e)
         }
     }
 
     /**
-     * 解析导航模式JSON数据
+     * 处理方向逻辑（按照之前分析）
+     * 高德方向：1=左转, 2=右转, 4=直行
+     * 特殊处理：dir=0时使用历史方向
      */
-    private fun parseNavigationJsonData(json: JSONObject, source: String) {
-        val trafficLightInfo = TrafficLightInfo().apply {
-            // 解析状态
-            val statusValue = json.optInt(KEY_TRAFFIC_LIGHT_STATUS, -1)
-            status = when (statusValue) {
-                COLOR_GREEN -> STATUS_GREEN
-                COLOR_RED -> STATUS_RED
-                COLOR_YELLOW -> STATUS_YELLOW
-                else -> STATUS_NONE
+    private fun handleDirection(amapDirection: Int): Int {
+        var direction = DIRECTION_STRAIGHT
+
+        // 如果收到有效方向，更新历史方向
+        when (amapDirection) {
+            AMAP_DIRECTION_LEFT -> {
+                direction = DIRECTION_LEFT
+                lastValidDirection = direction
             }
-
-            // 解析倒计时（优先红绿灯倒计时，然后绿灯倒计时）
-            countdown = json.optInt(KEY_RED_LIGHT_COUNTDOWN, 0)
-            if (countdown == 0) {
-                countdown = json.optInt(KEY_GREEN_LIGHT_COUNTDOWN, 0)
+            AMAP_DIRECTION_RIGHT -> {
+                direction = DIRECTION_RIGHT
+                lastValidDirection = direction
             }
-
-            // 解析方向
-            direction = json.optInt(KEY_DIRECTION, DIRECTION_STRAIGHT)
-
-            // 解析等待轮次
-            waitRound = json.optInt(KEY_WAIT_ROUND, 0)
-
-            // 设置来源
-            this.source = source
-            timestamp = System.currentTimeMillis()
-        }
-
-        // 处理红绿灯信息
-        if (trafficLightInfo.isValid()) {
-            processTrafficLightInfo(trafficLightInfo)
-        }
-    }
-
-    /**
-     * 解析导航模式Bundle数据（无JSON格式）
-     */
-    private fun parseNavigationBundleData(extras: Bundle) {
-        val trafficLightInfo = TrafficLightInfo().apply {
-            // 尝试从不同字段获取状态
-            status = when {
-                extras.containsKey(KEY_TRAFFIC_LIGHT_STATUS) -> {
-                    val statusValue = extras.getInt(KEY_TRAFFIC_LIGHT_STATUS, -1)
-                    when (statusValue) {
-                        COLOR_GREEN -> STATUS_GREEN
-                        COLOR_RED -> STATUS_RED
-                        COLOR_YELLOW -> STATUS_YELLOW
-                        else -> STATUS_NONE
-                    }
+            AMAP_DIRECTION_STRAIGHT -> {
+                direction = DIRECTION_STRAIGHT
+                lastValidDirection = direction
+            }
+            0 -> {
+                // dir=0时，使用历史方向（如果有）
+                if (lastValidDirection != 0) {
+                    direction = lastValidDirection
                 }
-                extras.containsKey("lightStatus") -> {
-                    val statusValue = extras.getInt("lightStatus", -1)
-                    when (statusValue) {
-                        COLOR_GREEN -> STATUS_GREEN
-                        COLOR_RED -> STATUS_RED
-                        COLOR_YELLOW -> STATUS_YELLOW
-                        else -> STATUS_NONE
-                    }
-                }
-                else -> STATUS_NONE
             }
-
-            // 尝试从不同字段获取倒计时
-            countdown = when {
-                extras.containsKey(KEY_RED_LIGHT_COUNTDOWN) ->
-                    extras.getInt(KEY_RED_LIGHT_COUNTDOWN, 0)
-                extras.containsKey(KEY_GREEN_LIGHT_COUNTDOWN) ->
-                    extras.getInt(KEY_GREEN_LIGHT_COUNTDOWN, 0)
-                extras.containsKey("lightCountdown") ->
-                    extras.getInt("lightCountdown", 0)
-                else -> 0
-            }
-
-            // 解析方向
-            direction = extras.getInt(KEY_DIRECTION, DIRECTION_STRAIGHT)
-
-            // 设置来源
-            source = "navigation"
-            timestamp = System.currentTimeMillis()
         }
 
-        // 处理红绿灯信息
-        if (trafficLightInfo.isValid()) {
-            processTrafficLightInfo(trafficLightInfo)
+        return direction
+    }
+
+    /**
+     * 映射高德状态到我们自定义状态（按照之前分析的状态机）
+     */
+    private fun mapAmapStatus(amapStatus: Int): Int {
+        return when (amapStatus) {
+            AMAP_STATUS_RED -> STATUS_RED            // 红灯
+            AMAP_STATUS_GREEN -> STATUS_GREEN        // 绿灯
+            AMAP_STATUS_YELLOW -> STATUS_YELLOW      // 黄灯
+            AMAP_STATUS_GREEN_COUNTDOWN -> STATUS_GREEN // 绿灯倒计时也显示为绿灯
+            AMAP_STATUS_TRANSITION -> STATUS_YELLOW  // 过渡状态显示黄灯
+            else -> STATUS_NONE
         }
     }
 
     /**
-     * 解析巡航模式红绿灯数据
+     * 确定倒计时值（按照之前分析的逻辑）
      */
-    private fun parseCruiseTrafficLightData(intent: Intent) {
+    private fun determineCountdown(amapStatus: Int, redCountdown: Int, greenLast: Int): Int {
+        return when (amapStatus) {
+            AMAP_STATUS_RED -> redCountdown          // 红灯阶段：使用红灯倒计时
+            AMAP_STATUS_GREEN -> 0                   // 绿灯常亮：无倒计时
+            AMAP_STATUS_YELLOW -> 0                  // 黄灯常亮：无倒计时
+            AMAP_STATUS_GREEN_COUNTDOWN -> redCountdown // 绿灯倒计时：使用红灯倒计时字段（从5到0）
+            AMAP_STATUS_TRANSITION -> redCountdown   // 过渡状态：短暂倒计时（2-3秒）
+            else -> 0
+        }
+    }
+
+    /**
+     * 从Bundle安全获取整数值（支持String转Int）
+     */
+    private fun getIntFromBundle(bundle: Bundle, key: String, defaultValue: Int): Int {
         try {
-            val extras = intent.extras ?: return
-
-            // 方法1：直接字段解析
-            parseCruiseDirectFields(extras)
-
-            // 方法2：JSON格式解析
-            val jsonString = extras.getString(KEY_JSON_DATA)
-            if (!jsonString.isNullOrEmpty()) {
-                try {
-                    val json = JSONObject(jsonString)
-                    parseCruiseJsonData(json)
-                } catch (e: Exception) {
-                    Log.w("TrafficLightManager", "巡航JSON解析失败", e)
-                }
+            if (!bundle.containsKey(key)) {
+                return defaultValue
             }
 
-            // 方法3：字符串格式解析
-            val trafficLightStr = extras.getString(KEY_CRUISE_TRAFFIC_LIGHT)
-            if (!trafficLightStr.isNullOrEmpty()) {
-                parseTrafficLightString(trafficLightStr, "cruise")
-            }
-
-        } catch (e: Exception) {
-            Log.e("TrafficLightManager", "解析巡航红绿灯数据失败", e)
-        }
-    }
-
-    /**
-     * 解析巡航模式直接字段数据
-     */
-    private fun parseCruiseDirectFields(extras: Bundle) {
-        val trafficLightInfo = TrafficLightInfo().apply {
-            // 解析状态
-            status = when {
-                extras.containsKey(KEY_CRUISE_STATUS) -> {
-                    val statusValue = extras.getInt(KEY_CRUISE_STATUS, -1)
-                    when (statusValue) {
-                        COLOR_GREEN -> STATUS_GREEN
-                        COLOR_RED -> STATUS_RED
-                        COLOR_YELLOW -> STATUS_YELLOW
-                        else -> STATUS_NONE
-                    }
-                }
-                extras.containsKey(KEY_CRUISE_COLOR) -> {
-                    val colorStr = extras.getString(KEY_CRUISE_COLOR) ?: ""
-                    when {
-                        colorStr.contains("green", ignoreCase = true) -> STATUS_GREEN
-                        colorStr.contains("red", ignoreCase = true) -> STATUS_RED
-                        colorStr.contains("yellow", ignoreCase = true) -> STATUS_YELLOW
-                        else -> STATUS_NONE
-                    }
-                }
-                else -> STATUS_NONE
-            }
-
-            // 解析倒计时
-            countdown = when {
-                extras.containsKey(KEY_CRUISE_COUNTDOWN) ->
-                    extras.getInt(KEY_CRUISE_COUNTDOWN, 0)
-                extras.containsKey(KEY_CRUISE_TIME) ->
-                    extras.getInt(KEY_CRUISE_TIME, 0)
-                extras.containsKey("seconds") ->
-                    extras.getInt("seconds", 0)
-                else -> 0
-            }
-
-            // 设置来源
-            source = "cruise"
-            timestamp = System.currentTimeMillis()
-        }
-
-        // 处理红绿灯信息
-        if (trafficLightInfo.isValid()) {
-            processTrafficLightInfo(trafficLightInfo)
-        }
-    }
-
-    /**
-     * 解析巡航模式JSON数据
-     */
-    private fun parseCruiseJsonData(json: JSONObject) {
-        val trafficLightInfo = TrafficLightInfo().apply {
-            // 解析状态
-            val statusValue = json.optInt("status", -1)
-            status = when (statusValue) {
-                COLOR_GREEN -> STATUS_GREEN
-                COLOR_RED -> STATUS_RED
-                COLOR_YELLOW -> STATUS_YELLOW
-                else -> {
-                    val colorStr = json.optString("color", "").toLowerCase()
-                    when {
-                        colorStr.contains("green") -> STATUS_GREEN
-                        colorStr.contains("red") -> STATUS_RED
-                        colorStr.contains("yellow") -> STATUS_YELLOW
-                        else -> STATUS_NONE
-                    }
-                }
-            }
-
-            // 解析倒计时
-            countdown = json.optInt("countdown", 0)
-            if (countdown == 0) {
-                countdown = json.optInt("time", 0)
-            }
-
-            // 解析方向
-            direction = json.optInt("direction", DIRECTION_STRAIGHT)
-
-            // 设置来源
-            source = "cruise_json"
-            timestamp = System.currentTimeMillis()
-        }
-
-        // 处理红绿灯信息
-        if (trafficLightInfo.isValid()) {
-            processTrafficLightInfo(trafficLightInfo)
-        }
-    }
-
-    /**
-     * 解析通用红绿灯字符串格式
-     */
-    private fun parseTrafficLightString(trafficLightStr: String, source: String) {
-        try {
-            // 格式1: "green:15", "red:30:1" (颜色:倒计时:方向)
-            val parts = trafficLightStr.split(":")
-            if (parts.isNotEmpty()) {
-                val colorStr = parts[0].toLowerCase()
-                val countdown = if (parts.size > 1) parts[1].toIntOrNull() ?: 0 else 0
-                val direction = if (parts.size > 2) parts[2].toIntOrNull() ?: DIRECTION_STRAIGHT else DIRECTION_STRAIGHT
-
-                val status = when {
-                    colorStr.contains("green") -> STATUS_GREEN
-                    colorStr.contains("red") -> STATUS_RED
-                    colorStr.contains("yellow") -> STATUS_YELLOW
-                    else -> STATUS_NONE
-                }
-
-                if (status != STATUS_NONE) {
-                    val trafficLightInfo = TrafficLightInfo().apply {
-                        this.status = status
-                        this.countdown = countdown
-                        this.direction = direction
-                        this.source = source
-                        timestamp = System.currentTimeMillis()
-                    }
-
-                    processTrafficLightInfo(trafficLightInfo)
-                }
+            val value = bundle.get(key)
+            return when (value) {
+                is Int -> value
+                is String -> value.toIntOrNull() ?: defaultValue
+                is Double -> value.toInt()
+                is Float -> value.toInt()
+                is Long -> value.toInt()
+                else -> defaultValue
             }
         } catch (e: Exception) {
-            Log.w("TrafficLightManager", "解析红绿灯字符串失败: $trafficLightStr", e)
-        }
-    }
-
-    /**
-     * 解析通用红绿灯数据
-     */
-    private fun parseGenericTrafficLightData(intent: Intent) {
-        try {
-            val extras = intent.extras ?: return
-            val allKeys = extras.keySet()
-
-            // 检查是否包含红绿灯相关字段
-            val hasTrafficLightKey = allKeys.any { key ->
-                key.contains("traffic", ignoreCase = true) &&
-                        key.contains("light", ignoreCase = true)
-            }
-
-            val hasLightKey = allKeys.any { key ->
-                key.contains("light", ignoreCase = true) &&
-                        !key.contains("flash", ignoreCase = true)
-            }
-
-            if (!hasTrafficLightKey && !hasLightKey) {
-                return
-            }
-
-            // 尝试解析各种字段组合
-            var status = STATUS_NONE
-            var countdown = 0
-            var direction = DIRECTION_STRAIGHT
-
-            // 查找状态字段
-            for (key in allKeys) {
-                when {
-                    key.contains("status", ignoreCase = true) ||
-                            key.contains("color", ignoreCase = true) -> {
-
-                        val value = extras.get(key)
-                        status = when {
-                            value.toString().contains("green", ignoreCase = true) -> STATUS_GREEN
-                            value.toString().contains("red", ignoreCase = true) -> STATUS_RED
-                            value.toString().contains("yellow", ignoreCase = true) -> STATUS_YELLOW
-                            value is Int -> when (value) {
-                                COLOR_GREEN -> STATUS_GREEN
-                                COLOR_RED -> STATUS_RED
-                                COLOR_YELLOW -> STATUS_YELLOW
-                                else -> STATUS_NONE
-                            }
-                            else -> STATUS_NONE
-                        }
-
-                        if (status != STATUS_NONE) break
-                    }
-                }
-            }
-
-            // 查找倒计时字段
-            for (key in allKeys) {
-                if (key.contains("count", ignoreCase = true) ||
-                    key.contains("time", ignoreCase = true) ||
-                    key.contains("second", ignoreCase = true)) {
-
-                    val value = extras.get(key)
-                    when (value) {
-                        is Int -> countdown = value
-                        is String -> countdown = value.toIntOrNull() ?: 0
-                        else -> {}
-                    }
-
-                    if (countdown > 0) break
-                }
-            }
-
-            // 查找方向字段
-            for (key in allKeys) {
-                if (key.contains("dir", ignoreCase = true) ||
-                    key.contains("turn", ignoreCase = true)) {
-
-                    val value = extras.get(key)
-                    direction = when (value) {
-                        is Int -> value
-                        is String -> when {
-                            value.contains("left", ignoreCase = true) -> DIRECTION_LEFT
-                            value.contains("right", ignoreCase = true) -> DIRECTION_RIGHT
-                            value.contains("straight", ignoreCase = true) -> DIRECTION_STRAIGHT
-                            else -> DIRECTION_STRAIGHT
-                        }
-                        else -> DIRECTION_STRAIGHT
-                    }
-                    break
-                }
-            }
-
-            // 如果找到有效数据，创建信息对象
-            if (status != STATUS_NONE && countdown >= 0) {
-                val trafficLightInfo = TrafficLightInfo().apply {
-                    this.status = status
-                    this.countdown = countdown
-                    this.direction = direction
-                    this.source = "generic"
-                    timestamp = System.currentTimeMillis()
-                }
-
-                processTrafficLightInfo(trafficLightInfo)
-            }
-
-        } catch (e: Exception) {
-            Log.w("TrafficLightManager", "解析通用红绿灯数据失败", e)
+            Log.w("TrafficLightManager", "获取字段 $key 失败: ${e.message}")
+            return defaultValue
         }
     }
 
@@ -641,10 +338,13 @@ class TrafficLightManager(
         // 确保倒计时非负
         info.countdown = max(0, info.countdown)
 
-        Log.d("TrafficLightManager", "处理红绿灯数据[${info.source}]: " +
-                "状态=${getStatusString(info.status)}, " +
-                "倒计时=${info.countdown}s, " +
-                "方向=${getDirectionString(info.direction)}")
+        if (BuildConfig.DEBUG) {
+            Log.d("TrafficLightManager", "处理红绿灯: " +
+                    "状态=${getStatusString(info.status)}, " +
+                    "倒计时=${info.countdown}s, " +
+                    "方向=${getDirectionString(info.direction)}, " +
+                    "原始状态=${info.amapStatus}")
+        }
 
         // 在主线程更新UI
         handler.post {
@@ -655,9 +355,9 @@ class TrafficLightManager(
                 // 发送更新
                 updateCallback(info)
 
-                // 设置自动隐藏（倒计时结束后8秒，或15秒无新数据）
+                // 设置自动隐藏（倒计时结束后5秒，或15秒无新数据）
                 val hideDelay = if (info.countdown > 0) {
-                    (info.countdown + 8) * 1000L
+                    (info.countdown + 5) * 1000L
                 } else {
                     15000L // 没有倒计时时显示15秒
                 }
@@ -682,6 +382,10 @@ class TrafficLightManager(
 
             handler.removeCallbacks(autoHideRunnable)
             handler.removeCallbacks(heartbeatRunnable)
+
+            // 重置历史方向
+            lastValidDirection = 0
+
             Log.d("TrafficLightManager", "广播接收器已注销")
 
         } catch (e: Exception) {
@@ -695,30 +399,42 @@ class TrafficLightManager(
     fun cleanup() {
         stop()
         handler.removeCallbacksAndMessages(null)
-        broadcastLog.clear()
     }
 
     /**
-     * 手动测试：模拟接收红绿灯数据（用于调试）
+     * 手动测试：模拟高德地图红绿灯数据（用于调试）
      */
-    fun simulateTrafficLightData(
-        status: Int,
-        countdown: Int,
-        direction: Int = DIRECTION_STRAIGHT,
-        source: String = "test"
+    fun simulateAmapTrafficLightData(
+        amapStatus: Int,  // 高德原始状态
+        redCountdown: Int,
+        amapDirection: Int, // 高德原始方向
+        waitRound: Int = 0,
+        greenLast: Int = 0
     ) {
         val testInfo = TrafficLightInfo().apply {
-            this.status = status
-            this.countdown = countdown
-            this.direction = direction
-            this.source = source
+            this.amapStatus = amapStatus
+            this.amapDirection = amapDirection
+
+            // 处理方向
+            this.direction = handleDirection(amapDirection)
+
+            // 映射状态
+            this.status = mapAmapStatus(amapStatus)
+
+            // 确定倒计时
+            this.countdown = determineCountdown(amapStatus, redCountdown, greenLast)
+
+            this.waitRound = waitRound
+            this.greenLast = greenLast
+            this.source = "test"
             timestamp = System.currentTimeMillis()
         }
 
-        Log.d("TrafficLightManager", "模拟红绿灯数据: " +
-                "状态=${getStatusString(status)}, " +
-                "倒计时=${countdown}s, " +
-                "方向=${getDirectionString(direction)}")
+        Log.d("TrafficLightManager", "模拟高德红绿灯: " +
+                "原始状态=$amapStatus, " +
+                "红灯=$redCountdown, " +
+                "方向=$amapDirection, " +
+                "映射状态=${getStatusString(testInfo.status)}")
 
         processTrafficLightInfo(testInfo)
     }
@@ -731,7 +447,6 @@ class TrafficLightManager(
             STATUS_GREEN -> "绿灯"
             STATUS_RED -> "红灯"
             STATUS_YELLOW -> "黄灯"
-            STATUS_FLASHING_YELLOW -> "黄闪"
             else -> "未知"
         }
     }
@@ -744,45 +459,7 @@ class TrafficLightManager(
             DIRECTION_STRAIGHT -> "直行"
             DIRECTION_LEFT -> "左转"
             DIRECTION_RIGHT -> "右转"
-            DIRECTION_STRAIGHT_LEFT -> "直行+左转"
-            DIRECTION_STRAIGHT_RIGHT -> "直行+右转"
-            DIRECTION_ALL -> "所有方向"
             else -> "直行"
-        }
-    }
-
-    /**
-     * 添加广播日志（调试用）
-     */
-    private fun addBroadcastLog(message: String) {
-        synchronized(broadcastLog) {
-            broadcastLog.add("${System.currentTimeMillis()}: $message")
-            if (broadcastLog.size > MAX_LOG_SIZE) {
-                broadcastLog.removeAt(0)
-            }
-        }
-
-        // 在调试模式下输出到Logcat
-        if (BuildConfig.DEBUG) {
-            Log.d("TrafficLightManager", message)
-        }
-    }
-
-    /**
-     * 获取广播日志（调试用）
-     */
-    fun getBroadcastLog(): List<String> {
-        return synchronized(broadcastLog) {
-            broadcastLog.toList()
-        }
-    }
-
-    /**
-     * 清除广播日志
-     */
-    fun clearBroadcastLog() {
-        synchronized(broadcastLog) {
-            broadcastLog.clear()
         }
     }
 

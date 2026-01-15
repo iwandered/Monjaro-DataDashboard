@@ -3,23 +3,51 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="ru.monjaro.mconfig">
 
+    <!-- 基础权限 -->
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
     <uses-permission android:name="android.permission.ACCESS_SURFACE_FLINGER" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- 红绿灯广播接收需要的权限 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BROADCASTS" />
+
+    <!-- 存储权限 -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+
+    <!-- 硬件权限 -->
     <uses-feature android:name="android.hardware.usb.host" />
+
+    <!-- 车辆控制权限 -->
     <uses-permission android:name="android.car.permission.CAR_CONTROL_CLIMATE" />
     <uses-permission android:name="android.car.permission.CAR_HVAC" />
     <uses-permission android:name="android.car.permission.CAR_CONTROL_AIR_CONDITIONING" />
+
+    <!-- 媒体控制权限 -->
     <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL" />
-    <!-- 添加通知监听权限 -->
+
+    <!-- 通知监听权限 -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
+
+    <!-- 网络权限（用于调试和可能的网络连接） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- 位置权限（导航相关） -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Android 12+ 广播权限 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
         android:allowBackup="true"
@@ -30,19 +58,25 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MConfig"
-        tools:targetApi="31">
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31"
+        tools:ignore="GoogleAppIndexingWarning,UnusedAttribute">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.MConfig"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="stateHidden|adjustResize">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- 文件打开支持 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -85,6 +119,7 @@
                 <data android:host="*"/>
                 <data android:pathPattern=".*\\.mcf"/>
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
@@ -96,14 +131,16 @@
 
         </activity>
 
+        <!-- 主服务 -->
         <service
             android:name="ru.monjaro.mconfig.MConfigService"
             android:exported="false" />
+
         <service
             android:name="ru.monjaro.mconfig.MConfigInitService"
             android:exported="false" />
 
-        <!-- 新增：媒体通知监听服务 -->
+        <!-- 媒体通知监听服务 -->
         <service
             android:name="ru.monjaro.mconfig.MediaNotificationListenerService"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
@@ -113,6 +150,7 @@
             </intent-filter>
         </service>
 
+        <!-- 启动接收器 -->
         <receiver
             android:name="ru.monjaro.mconfig.BootService"
             android:enabled="true"
@@ -125,6 +163,7 @@
             </intent-filter>
         </receiver>
 
+        <!-- 文件提供器 -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:grantUriPermissions="true"
@@ -134,6 +173,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_provider_paths"/>
         </provider>
+
     </application>
 
 </manifest>

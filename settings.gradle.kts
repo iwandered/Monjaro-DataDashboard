@@ -13,6 +13,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MConfig"
+rootProject.name = "MDashboard"
 include(":app")
  

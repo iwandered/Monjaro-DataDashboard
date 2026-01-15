@@ -4,12 +4,11 @@ import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.min
+import androidx.core.content.ContextCompat
 
 /**
- * 红绿灯倒计时自定义视图
- * 紧凑水平布局：左侧为红绿灯颜色，中间为方向箭头，右侧为倒计时数字
- * 移除了胶囊背景，避免元素重叠
+ * 红绿灯倒计时自定义视图 - 上下布局版本（固定大小）
+ * 采用Java版本的胶囊形轮廓设计，统一大小和比例
  */
 class TrafficLightView @JvmOverloads constructor(
     context: Context,
@@ -18,37 +17,42 @@ class TrafficLightView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     companion object {
-        // 颜色定义
-        private const val COLOR_RED = 0xFFFF4444.toInt()
-        private const val COLOR_GREEN = 0xFF44FF44.toInt()
-        private const val COLOR_YELLOW = 0xFFFFFF44.toInt()
-        private const val COLOR_FLASHING_YELLOW = 0xFFFFFF88.toInt()
-        private const val COLOR_TEXT = 0xFFFFFFFF.toInt()
-        private const val COLOR_TEXT_DARK = 0xFF888888.toInt()
-        private const val COLOR_ARROW = 0xFFFFFFFF.toInt()  // 箭头统一用白色
-        private const val COLOR_ARROW_DARK = 0xFF333333.toInt()
+        // 颜色定义 - 与Java版本保持一致
+        private const val COLOR_RED = 0xFFFF4444.toInt()      // Java版本红色
+        private const val COLOR_GREEN = 0xFF44FF44.toInt()    // Java版本绿色
+        private const val COLOR_YELLOW = 0xFFFFFF44.toInt()   // Java版本黄色
+        private const val COLOR_TEXT = 0xFFFFFFFF.toInt()     // 白色文本
+        private const val COLOR_ARROW = 0xFFFFFFFF.toInt()    // 白色箭头
 
-        // 动画相关
-        private const val BLINK_INTERVAL = 500L // 闪烁间隔
+        // 尺寸定义 - 固定大小，不随scale变化
+        private const val BASE_CIRCLE_DIAMETER = 48f      // 灯直径（固定大小）
+        private const val BASE_TEXT_SIZE = 48f            // 倒计时文本大小（固定大小）
+        private const val BASE_OUTLINE_STROKE = 1.5f      // 边框线宽
+        private const val BASE_PADDING = 2f               // 基础内边距
+
+        // 布局常量 - 调整垂直布局的间距
+        private const val VERTICAL_GAP = 8f               // 灯与文本之间的垂直间隙
+
+        // 箭头大小参数 - 缩小箭头
+        private const val ARROW_SCALE_FACTOR = 0.8f       // 箭头缩放因子（0.8表示缩小到80%）
     }
 
     // 红绿灯状态
     private var status = TrafficLightManager.STATUS_NONE
     private var countdown = 0
     private var direction = TrafficLightManager.DIRECTION_STRAIGHT
-    private var dataSource = ""
+    private var source = ""
 
-    // 闪烁相关
-    private var isBlinking = false
-    private var blinkVisible = true
-    private val blinkHandler = android.os.Handler()
-    private val blinkRunnable = object : Runnable {
-        override fun run() {
-            blinkVisible = !blinkVisible
-            invalidate()
-            blinkHandler.postDelayed(this, BLINK_INTERVAL)
-        }
-    }
+    // 历史方向缓存
+    private var lastValidDirection = TrafficLightManager.DIRECTION_STRAIGHT
+
+    // 尺寸参数（支持缩放）
+    private var scale = 1.0f  // 默认缩放比例，但不影响组件大小
+    private var circleDiameter = BASE_CIRCLE_DIAMETER
+    private var textSize = BASE_TEXT_SIZE
+    private var outlineStroke = BASE_OUTLINE_STROKE
+    private var padding = BASE_PADDING
+    private var verticalGap = VERTICAL_GAP
 
     // 画笔
     private val lightPaint = Paint().apply {
@@ -56,149 +60,79 @@ class TrafficLightView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
 
-    private val lightOutlinePaint = Paint().apply {
-        isAntiAlias = true
-        style = Paint.Style.STROKE
-        strokeWidth = 2f
-        color = 0xFF666666.toInt()
-    }
-
     private val textPaint = Paint().apply {
         isAntiAlias = true
         style = Paint.Style.FILL
         color = COLOR_TEXT
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = Paint.Align.CENTER  // 居中，上下布局需要居中
+        typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
     }
 
-    private val arrowPaint = Paint().apply {
+    private val outlinePaint = Paint().apply {
         isAntiAlias = true
-        style = Paint.Style.FILL
-        color = COLOR_ARROW
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = outlineStroke
+        strokeCap = Paint.Cap.ROUND
     }
 
-    private val arrowDarkPaint = Paint().apply {
-        isAntiAlias = true
-        style = Paint.Style.FILL
-        color = COLOR_ARROW_DARK
-    }
+    // 方向覆盖
+    private var directionOverride = -1
 
-    // 箭头路径
-    private val straightArrowPath = Path()
-    private val leftArrowPath = Path()
-    private val rightArrowPath = Path()
-    private val straightLeftArrowPath = Path()
-    private val straightRightArrowPath = Path()
-    private val allDirectionPath = Path()
-
-    // 尺寸
-    private var lightRadius = 0f
-    private var textSize = 0f
-    private var padding = 0f
-    private var lightCenterX = 0f
-    private var lightCenterY = 0f
-    private var arrowCenterX = 0f
-    private var arrowCenterY = 0f
+    // 布局参数 - 修改为垂直布局
+    private var circleCenterX = 0f
+    private var circleCenterY = 0f
     private var textCenterX = 0f
     private var textCenterY = 0f
 
-    // 调试模式
-    private var showDebugInfo = BuildConfig.DEBUG
+
+
+    // 箭头drawable - 与Java版本保持一致
+    private var arrowDrawable: android.graphics.drawable.Drawable? = null
 
     init {
-        // 初始化箭头路径
-        initArrowPaths()
+        // 初始化箭头drawable（与Java版本相同的drawable）
+        arrowDrawable = ContextCompat.getDrawable(context, R.drawable.ic_direction_arrow)
 
-        // 设置默认可见性
+        // 更新缩放尺寸
+        updateScaledDimensions()
+
+        // 默认隐藏
         visibility = View.GONE
     }
 
-    private fun initArrowPaths() {
-        // 直行箭头（向上箭头）
-        straightArrowPath.reset()
-        straightArrowPath.moveTo(0f, -0.6f)    // 上顶点
-        straightArrowPath.lineTo(-0.25f, 0f)   // 左下
-        straightArrowPath.lineTo(-0.15f, 0f)   // 左内
-        straightArrowPath.lineTo(-0.15f, 0.6f) // 下左
-        straightArrowPath.lineTo(0.15f, 0.6f)  // 下右
-        straightArrowPath.lineTo(0.15f, 0f)    // 右内
-        straightArrowPath.lineTo(0.25f, 0f)    // 右下
-        straightArrowPath.close()
+    private fun updateScaledDimensions() {
+        // 圆形直径和文本大小保持固定，不随scale变化
+        circleDiameter = BASE_CIRCLE_DIAMETER  // 固定大小
+        textSize = BASE_TEXT_SIZE              // 固定大小
 
-        // 左转箭头
-        leftArrowPath.reset()
-        leftArrowPath.moveTo(0.4f, -0.4f)      // 右上
-        leftArrowPath.lineTo(-0.4f, 0f)        // 左中
-        leftArrowPath.lineTo(0.4f, 0.4f)       // 右下
-        leftArrowPath.close()
+        // 只缩放边框线宽、内边距和间距
+        outlineStroke = BASE_OUTLINE_STROKE * scale
+        padding = BASE_PADDING * scale
+        verticalGap = VERTICAL_GAP * scale
 
-        // 右转箭头
-        rightArrowPath.reset()
-        rightArrowPath.moveTo(-0.4f, -0.4f)    // 左上
-        rightArrowPath.lineTo(0.4f, 0f)        // 右中
-        rightArrowPath.lineTo(-0.4f, 0.4f)     // 左下
-        rightArrowPath.close()
+        textPaint.textSize = textSize  // 设置固定的文本大小
+        outlinePaint.strokeWidth = outlineStroke
+    }
 
-        // 直行+左转箭头（向上箭头+左箭头）
-        straightLeftArrowPath.reset()
-        // 直行部分
-        straightLeftArrowPath.moveTo(0f, -0.6f)
-        straightLeftArrowPath.lineTo(-0.15f, -0.3f)
-        straightLeftArrowPath.lineTo(-0.3f, -0.3f)
-        straightLeftArrowPath.lineTo(0f, 0f)
-        straightLeftArrowPath.lineTo(0.3f, -0.3f)
-        straightLeftArrowPath.lineTo(0.15f, -0.3f)
-        straightLeftArrowPath.lineTo(0.15f, 0.6f)
-        straightLeftArrowPath.lineTo(-0.15f, 0.6f)
-        straightLeftArrowPath.lineTo(-0.15f, -0.3f)
-        straightLeftArrowPath.close()
+    /**
+     * 设置缩放比例（用于预览模式）
+     * 注意：现在只影响间距，不影响组件大小
+     */
+    fun setPreviewScale(scale: Float) {
+        this.scale = scale
+        updateScaledDimensions()
+        requestLayout()
+        invalidate()
+    }
 
-        // 左转部分（叠加在直行上）
-        straightLeftArrowPath.moveTo(-0.1f, 0.1f)
-        straightLeftArrowPath.lineTo(-0.4f, 0.1f)
-        straightLeftArrowPath.lineTo(0f, 0.4f)
-        straightLeftArrowPath.lineTo(0.4f, 0.1f)
-        straightLeftArrowPath.lineTo(0.1f, 0.1f)
-        straightLeftArrowPath.close()
-
-        // 直行+右转箭头（向上箭头+右箭头）
-        straightRightArrowPath.reset()
-        // 直行部分
-        straightRightArrowPath.moveTo(0f, -0.6f)
-        straightRightArrowPath.lineTo(-0.15f, -0.3f)
-        straightRightArrowPath.lineTo(-0.3f, -0.3f)
-        straightRightArrowPath.lineTo(0f, 0f)
-        straightRightArrowPath.lineTo(0.3f, -0.3f)
-        straightRightArrowPath.lineTo(0.15f, -0.3f)
-        straightRightArrowPath.lineTo(0.15f, 0.6f)
-        straightRightArrowPath.lineTo(-0.15f, 0.6f)
-        straightRightArrowPath.lineTo(-0.15f, -0.3f)
-        straightRightArrowPath.close()
-
-        // 右转部分（叠加在直行上）
-        straightRightArrowPath.moveTo(-0.4f, -0.1f)
-        straightRightArrowPath.lineTo(0f, 0.2f)
-        straightRightArrowPath.lineTo(0.4f, -0.1f)
-        straightRightArrowPath.lineTo(0.1f, -0.1f)
-        straightRightArrowPath.close()
-
-        // 所有方向（十字箭头）
-        allDirectionPath.reset()
-        // 垂直部分
-        allDirectionPath.moveTo(0f, -0.6f)
-        allDirectionPath.lineTo(-0.15f, -0.45f)
-        allDirectionPath.lineTo(-0.15f, -0.15f)
-        allDirectionPath.lineTo(-0.45f, -0.15f)
-        allDirectionPath.lineTo(-0.45f, 0.15f)
-        allDirectionPath.lineTo(-0.15f, 0.15f)
-        allDirectionPath.lineTo(-0.15f, 0.45f)
-        allDirectionPath.lineTo(0.15f, 0.45f)
-        allDirectionPath.lineTo(0.15f, 0.15f)
-        allDirectionPath.lineTo(0.45f, 0.15f)
-        allDirectionPath.lineTo(0.45f, -0.15f)
-        allDirectionPath.lineTo(0.15f, -0.15f)
-        allDirectionPath.lineTo(0.15f, -0.45f)
-        allDirectionPath.close()
+    /**
+     * 设置方向覆盖
+     */
+    fun setOverrideDirection(direction: Int) {
+        this.directionOverride = direction
+        this.direction = direction
+        invalidate()
     }
 
     /**
@@ -210,340 +144,189 @@ class TrafficLightView @JvmOverloads constructor(
         direction: Int = TrafficLightManager.DIRECTION_STRAIGHT,
         source: String = ""
     ) {
-        val oldStatus = this.status
-        val oldCountdown = this.countdown
+        // 处理方向：如果有覆盖方向，使用覆盖方向
+        val effectiveDirection = if (directionOverride != -1) {
+            directionOverride
+        } else if (direction != 0) {
+            lastValidDirection = direction
+            direction
+        } else {
+            lastValidDirection
+        }
+
+        val timeChanged = this.countdown != countdown
 
         this.status = status
         this.countdown = countdown
-        this.direction = direction
-        this.dataSource = source
+        this.direction = effectiveDirection
+        this.source = source
 
-        // 控制闪烁效果
-        if (status == TrafficLightManager.STATUS_YELLOW && oldStatus != status) {
-            startBlinking()
-        } else if (status != TrafficLightManager.STATUS_YELLOW && oldStatus == TrafficLightManager.STATUS_YELLOW) {
-            stopBlinking()
-        }
-
-        // 只有当有有效数据时才显示
+        // 控制显示/隐藏
         visibility = if (status != TrafficLightManager.STATUS_NONE && countdown >= 0) {
             View.VISIBLE
         } else {
             View.GONE
         }
 
-        // 如果状态或倒计时发生变化，重新测量
-        if (oldStatus != status || oldCountdown != countdown) {
-            requestLayout()
+        if (timeChanged) {
+            requestLayout() // 时间改变时重新测量（数字位数可能变化）
         }
-
         invalidate()
-    }
-
-    /**
-     * 开始闪烁（黄灯）
-     */
-    private fun startBlinking() {
-        if (isBlinking) return
-
-        isBlinking = true
-        blinkVisible = true
-        blinkHandler.post(blinkRunnable)
-    }
-
-    /**
-     * 停止闪烁
-     */
-    private fun stopBlinking() {
-        if (!isBlinking) return
-
-        isBlinking = false
-        blinkHandler.removeCallbacks(blinkRunnable)
-        blinkVisible = true
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
 
-        // 计算尺寸
-        lightRadius = h * 0.3f
-        textSize = h * 0.45f
-        padding = h * 0.1f
+        val width = w.toFloat()
+        val height = h.toFloat()
 
-        // 计算各元素中心点（紧凑水平布局）
-        // 灯在左侧
-        lightCenterX = lightRadius + padding
-        lightCenterY = h / 2f
+        // 垂直布局：灯在上，文字在下
+        circleCenterX = width / 2f
+        circleCenterY = circleDiameter / 2f + padding
 
-        // 箭头在中间
-        arrowCenterX = lightCenterX + lightRadius + padding * 2
-        arrowCenterY = h / 2f
-
-        // 文本在右侧（如果有倒计时）
-        textCenterX = if (countdown > 0) {
-            // 根据文本宽度动态计算
-            textPaint.textSize = textSize
-            val textWidth = textPaint.measureText(countdown.toString())
-            arrowCenterX + lightRadius + padding * 2 + textWidth / 2
-        } else {
-            arrowCenterX + lightRadius + padding
-        }
-        textCenterY = h / 2f + (textSize * 0.35f)
+        textCenterX = width / 2f
+        textCenterY = circleCenterY + circleDiameter / 2f + verticalGap + textPaint.textSize / 2f
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val desiredHeight = resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
+        // 计算宽度：取圆形直径和文本宽度的较大值
+        val circleWidth = circleDiameter
+        val textWidth = measureTextWidth()
+        val minWidth = maxOf(circleWidth, textWidth) + padding * 2
 
-        // 测量高度
-        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
-        val heightSize = MeasureSpec.getSize(heightMeasureSpec)
+        // 计算高度：圆形直径 + 垂直间隙 + 文本高度 + 上下内边距
+        // 文本高度通过FontMetrics计算更准确
+        val fontMetrics = textPaint.fontMetrics
+        val textHeight = fontMetrics.bottom - fontMetrics.top
+        val minHeight = circleDiameter + verticalGap + textHeight + padding * 2
 
-        val height = when (heightMode) {
-            MeasureSpec.EXACTLY -> heightSize
-            MeasureSpec.AT_MOST -> min(desiredHeight, heightSize)
-            else -> desiredHeight
-        }
-
-        // 测量宽度：动态计算三部分的宽度
-        // 1. 灯区域：灯直径 + 左右padding
-        val lightWidth = lightRadius * 2 + padding * 2
-
-        // 2. 箭头区域：固定宽度
-        val arrowWidth = height * 0.6f
-
-        // 3. 文本区域：根据倒计时数字计算
-        var textWidth = 0f
-        if (countdown > 0) {
-            textPaint.textSize = textSize
-            textWidth = textPaint.measureText(countdown.toString()) + padding * 2
-        }
-
-        val desiredWidth = (lightWidth + arrowWidth + textWidth).toInt()
-
-        val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-
-        val width = when (widthMode) {
-            MeasureSpec.EXACTLY -> widthSize
-            MeasureSpec.AT_MOST -> min(desiredWidth, widthSize)
-            else -> desiredWidth
-        }
+        // 使用View类的resolveSize方法
+        val width = View.resolveSize(minWidth.toInt(), widthMeasureSpec)
+        val height = View.resolveSize(minHeight.toInt(), heightMeasureSpec)
 
         setMeasuredDimension(width, height)
+    }
+
+    private fun measureTextWidth(): Float {
+        if (countdown > 0) {
+            val textStr = countdown.toString()
+            return textPaint.measureText(textStr)
+        }
+        return 0f
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        if (status == TrafficLightManager.STATUS_NONE) return
-
-        // 紧凑水平布局：灯 | 箭头 | 秒数
-        drawCompactHorizontalLayout(canvas)
-
-        // 绘制调试信息（仅在调试模式显示）
-        if (showDebugInfo && dataSource.isNotEmpty() && blinkVisible) {
-            drawDebugInfo(canvas, width.toFloat(), height.toFloat())
-        }
-    }
-
-    /**
-     * 绘制紧凑水平布局：灯 | 箭头 | 秒数
-     */
-    private fun drawCompactHorizontalLayout(canvas: Canvas) {
-        // 1. 绘制灯（左侧）
-        if (blinkVisible || status != TrafficLightManager.STATUS_YELLOW) {
-            drawTrafficLight(canvas)
+        if (status == TrafficLightManager.STATUS_NONE) {
+            return
         }
 
-        // 2. 绘制箭头（中间）
-        if (blinkVisible) {
-            drawDirectionArrow(canvas)
+        // 1. 获取状态颜色
+        val color = getStatusColor()
+
+        // 2. 绘制圆形灯
+        lightPaint.color = color
+        val circleRadius = circleDiameter / 2f
+        canvas.drawCircle(circleCenterX, circleCenterY, circleRadius, lightPaint)
+
+        // 3. 绘制方向箭头（在灯上）- 使用drawable与Java版本一致
+        drawDirectionArrow(canvas, circleCenterX, circleCenterY, circleRadius)
+
+        // 4. 绘制倒计时文本
+        if (countdown > 0) {
+            drawCountdownText(canvas, color)
         }
 
-        // 3. 绘制倒计时数字（右侧）
-        if (countdown > 0 && blinkVisible) {
-            drawCountdownText(canvas)
-        }
-    }
 
-    /**
-     * 绘制红绿灯圆形
-     */
-    private fun drawTrafficLight(canvas: Canvas) {
-        // 根据状态设置颜色
-        val (lightColor, outlineColor) = when (status) {
-            TrafficLightManager.STATUS_GREEN -> Pair(COLOR_GREEN, COLOR_GREEN)
-            TrafficLightManager.STATUS_RED -> Pair(COLOR_RED, COLOR_RED)
-            TrafficLightManager.STATUS_YELLOW -> Pair(COLOR_YELLOW, COLOR_YELLOW)
-            TrafficLightManager.STATUS_FLASHING_YELLOW -> Pair(COLOR_FLASHING_YELLOW, COLOR_FLASHING_YELLOW)
-            else -> Pair(COLOR_GREEN, COLOR_GREEN)
-        }
-
-        lightPaint.color = lightColor
-        lightOutlinePaint.color = outlineColor
-
-        // 绘制红绿灯圆形
-        canvas.drawCircle(lightCenterX, lightCenterY, lightRadius, lightPaint)
-        canvas.drawCircle(lightCenterX, lightCenterY, lightRadius, lightOutlinePaint)
-
-        // 绘制内圆（高光效果）
-        val highlightPaint = Paint(lightPaint).apply {
-            color = adjustColorBrightness(lightColor, 1.3f)
-        }
-        canvas.drawCircle(
-            lightCenterX - lightRadius * 0.15f,
-            lightCenterY - lightRadius * 0.15f,
-            lightRadius * 0.25f,
-            highlightPaint
-        )
     }
 
     /**
      * 绘制方向箭头
      */
-    private fun drawDirectionArrow(canvas: Canvas) {
+    private fun drawDirectionArrow(canvas: Canvas, centerX: Float, centerY: Float, circleRadius: Float) {
+        val drawable = arrowDrawable ?: return
+
         canvas.save()
 
-        // 移动到箭头中心
-        canvas.translate(arrowCenterX, arrowCenterY)
-
-        // 根据箭头大小缩放
-        val arrowScale = lightRadius * 0.8f
-        canvas.scale(arrowScale, arrowScale)
-
-        // 根据方向选择箭头路径和画笔
-        val (arrowPath, paint) = when (direction) {
-            TrafficLightManager.DIRECTION_STRAIGHT -> Pair(
-                straightArrowPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
-            TrafficLightManager.DIRECTION_LEFT -> Pair(
-                leftArrowPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
-            TrafficLightManager.DIRECTION_RIGHT -> Pair(
-                rightArrowPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
-            TrafficLightManager.DIRECTION_STRAIGHT_LEFT -> Pair(
-                straightLeftArrowPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
-            TrafficLightManager.DIRECTION_STRAIGHT_RIGHT -> Pair(
-                straightRightArrowPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
-            TrafficLightManager.DIRECTION_ALL -> Pair(
-                allDirectionPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
-            else -> Pair(
-                straightArrowPath,
-                if (status == TrafficLightManager.STATUS_RED) arrowPaint else arrowDarkPaint
-            )
+        // 根据方向旋转（与Java版本一致）
+        val rotation = when (direction) {
+            TrafficLightManager.DIRECTION_LEFT -> -90f
+            TrafficLightManager.DIRECTION_RIGHT -> 90f
+            3 -> 180f  // U-turn，如果支持的话
+            else -> 0f  // 直行或其他
         }
+        canvas.rotate(rotation, centerX, centerY)
 
-        // 绘制箭头
-        canvas.drawPath(arrowPath, paint)
+        // 箭头大小：基于圆形半径，但使用缩放因子缩小箭头
+        val arrowSize = (circleRadius * ARROW_SCALE_FACTOR * 2).toInt() // 使用缩放因子缩小箭头
+        val halfSize = arrowSize / 2
+
+        // 设置drawable边界并绘制
+        drawable.setBounds(
+            (centerX - halfSize).toInt(),
+            (centerY - halfSize).toInt(),
+            (centerX + halfSize).toInt(),
+            (centerY + halfSize).toInt()
+        )
+        drawable.draw(canvas)
 
         canvas.restore()
     }
 
     /**
-     * 绘制倒计时数字
+     * 绘制倒计时文本
      */
-    private fun drawCountdownText(canvas: Canvas) {
-        // 根据状态选择文本颜色
-        val paint = when (status) {
-            TrafficLightManager.STATUS_GREEN -> textPaint.apply { color = COLOR_GREEN }
-            TrafficLightManager.STATUS_RED -> textPaint.apply { color = COLOR_RED }
-            TrafficLightManager.STATUS_YELLOW -> textPaint.apply { color = COLOR_YELLOW }
-            TrafficLightManager.STATUS_FLASHING_YELLOW -> textPaint.apply { color = COLOR_FLASHING_YELLOW }
-            else -> textPaint.apply { color = COLOR_TEXT }
-        }
-
-        paint.textSize = textSize
-
-        // 绘制倒计时数字
+    private fun drawCountdownText(canvas: Canvas, color: Int) {
         val countdownText = countdown.toString()
-        canvas.drawText(countdownText, textCenterX, textCenterY, paint)
+        textPaint.color = color
 
-        // 可选：绘制"秒"字（小号）
-        if (width > (textCenterX + paint.measureText(countdownText) / 2 + textSize * 0.3f).toInt()) {
-            val secondPaint = Paint(paint).apply {
-                textSize = textSize * 0.4f
-            }
-            val secondTextX = textCenterX + paint.measureText(countdownText) / 2 + secondPaint.textSize * 0.3f
-            val secondTextY = textCenterY - (paint.textSize - secondPaint.textSize) * 0.3f
-            canvas.drawText("秒", secondTextX, secondTextY, secondPaint)
-        }
+        // 计算文本基线位置
+        val fontMetrics = textPaint.fontMetrics
+        val textY = textCenterY - (fontMetrics.top + fontMetrics.bottom) / 2
+
+        canvas.drawText(countdownText, textCenterX, textY, textPaint)
     }
 
     /**
      * 绘制调试信息
      */
-    private fun drawDebugInfo(canvas: Canvas, width: Float, height: Float) {
+    private fun drawDebugInfo(canvas: Canvas) {
         val debugPaint = Paint().apply {
             isAntiAlias = true
             style = Paint.Style.FILL
-            color = 0x80FFFFFF.toInt() // 半透明白色
-            textSize = height * 0.12f
-            textAlign = Paint.Align.CENTER
+            color = 0x80FFFFFF.toInt()
+            textSize = textSize * 0.4f
+            textAlign = Paint.Align.LEFT
         }
 
-        // 显示数据来源
-        val sourceText = when (dataSource) {
-            "navigation" -> "导航"
-            "cruise" -> "巡航"
-            "cruise_json" -> "巡航(JSON)"
-            "generic" -> "通用"
-            "test" -> "测试"
-            else -> dataSource
-        }
-
-        // 在底部显示来源
-        canvas.drawText(sourceText, width / 2, height - 5, debugPaint)
-
-        // 显示方向信息
-        val directionText = when (direction) {
-            TrafficLightManager.DIRECTION_STRAIGHT -> "直行"
-            TrafficLightManager.DIRECTION_LEFT -> "左转"
-            TrafficLightManager.DIRECTION_RIGHT -> "右转"
-            TrafficLightManager.DIRECTION_STRAIGHT_LEFT -> "直左"
-            TrafficLightManager.DIRECTION_STRAIGHT_RIGHT -> "直右"
-            TrafficLightManager.DIRECTION_ALL -> "全向"
-            else -> "未知"
-        }
-
-        canvas.drawText(directionText, width / 2, height - debugPaint.textSize - 5, debugPaint)
-    }
-
-    /**
-     * 调整颜色亮度
-     */
-    private fun adjustColorBrightness(color: Int, factor: Float): Int {
-        val a = color shr 24 and 0xFF
-        var r = color shr 16 and 0xFF
-        var g = color shr 8 and 0xFF
-        var b = color and 0xFF
-
-        r = (r * factor).toInt().coerceIn(0, 255)
-        g = (g * factor).toInt().coerceIn(0, 255)
-        b = (b * factor).toInt().coerceIn(0, 255)
-
-        return a shl 24 or (r shl 16) or (g shl 8) or b
+        // 在左上角显示来源和方向
+        val debugText = "$source | ${getDirectionString(direction)}"
+        canvas.drawText(debugText, 5f, debugPaint.textSize + 5, debugPaint)
     }
 
     /**
      * 获取状态颜色
      */
-    fun getStatusColor(): Int {
+    private fun getStatusColor(): Int {
         return when (status) {
             TrafficLightManager.STATUS_GREEN -> COLOR_GREEN
             TrafficLightManager.STATUS_RED -> COLOR_RED
             TrafficLightManager.STATUS_YELLOW -> COLOR_YELLOW
-            TrafficLightManager.STATUS_FLASHING_YELLOW -> COLOR_FLASHING_YELLOW
             else -> COLOR_GREEN
+        }
+    }
+
+    /**
+     * 获取方向字符串
+     */
+    private fun getDirectionString(direction: Int): String {
+        return when (direction) {
+            TrafficLightManager.DIRECTION_STRAIGHT -> "直行"
+            TrafficLightManager.DIRECTION_LEFT -> "左转"
+            TrafficLightManager.DIRECTION_RIGHT -> "右转"
+            3 -> "掉头"
+            else -> "未知"
         }
     }
 
@@ -562,20 +345,14 @@ class TrafficLightView @JvmOverloads constructor(
      */
     fun getCurrentDirection(): Int = direction
 
-    /**
-     * 设置调试模式
-     */
-    fun setDebugMode(enabled: Boolean) {
-        showDebugInfo = enabled
-        invalidate()
-    }
+
 
     /**
      * 清理资源
      */
     fun cleanup() {
-        stopBlinking()
-        blinkHandler.removeCallbacksAndMessages(null)
+        lastValidDirection = TrafficLightManager.DIRECTION_STRAIGHT
+        directionOverride = -1
     }
 
     override fun onDetachedFromWindow() {
