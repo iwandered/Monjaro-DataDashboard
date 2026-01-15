@@ -84,6 +84,15 @@ class TrafficLightManager(
         fun isExpired(expireTime: Long = 10000): Boolean {
             return System.currentTimeMillis() - timestamp > expireTime
         }
+
+        // 判断是否应该显示
+        fun shouldDisplay(): Boolean {
+            // 黄灯且倒计时为0时不显示
+            if (status == STATUS_YELLOW && countdown == 0) {
+                return false
+            }
+            return isValid() && !isExpired()
+        }
     }
 
     private var broadcastReceiver: BroadcastReceiver? = null
@@ -216,6 +225,27 @@ class TrafficLightManager(
             // 确定倒计时值
             val countdown = determineCountdown(amapStatus, redCountdown, greenLast)
 
+            // 检查是否需要显示
+            val shouldDisplay = when {
+                amapStatus == AMAP_STATUS_YELLOW && redCountdown == 0 -> {
+                    Log.d("TrafficLightManager", "黄灯常亮0秒，不显示")
+                    false
+                }
+                amapStatus == AMAP_STATUS_TRANSITION && redCountdown == 0 -> {
+                    Log.d("TrafficLightManager", "过渡状态0秒，不显示")
+                    false
+                }
+                else -> true
+            }
+
+            if (!shouldDisplay) {
+                // 发送null以隐藏显示
+                handler.post {
+                    updateCallback(null)
+                }
+                return
+            }
+
             // 创建红绿灯信息
             val trafficLightInfo = TrafficLightInfo(
                 status = status,
@@ -291,10 +321,12 @@ class TrafficLightManager(
     private fun determineCountdown(amapStatus: Int, redCountdown: Int, greenLast: Int): Int {
         return when (amapStatus) {
             AMAP_STATUS_RED -> redCountdown          // 红灯阶段：使用红灯倒计时
-            AMAP_STATUS_GREEN -> 0                   // 绿灯常亮：无倒计时
-            AMAP_STATUS_YELLOW -> 0                  // 黄灯常亮：无倒计时
-            AMAP_STATUS_GREEN_COUNTDOWN -> redCountdown // 绿灯倒计时：使用红灯倒计时字段（从5到0）
-            AMAP_STATUS_TRANSITION -> redCountdown   // 过渡状态：短暂倒计时（2-3秒）
+            AMAP_STATUS_GREEN -> {
+                if (greenLast > 0) greenLast else 0  // 绿灯：如果有greenLast则显示，否则0
+            }
+            AMAP_STATUS_YELLOW -> redCountdown       // 黄灯常亮：使用红灯倒计时字段
+            AMAP_STATUS_GREEN_COUNTDOWN -> redCountdown // 绿灯倒计时：使用红灯倒计时字段
+            AMAP_STATUS_TRANSITION -> redCountdown   // 过渡状态：短暂倒计时
             else -> 0
         }
     }
@@ -330,9 +362,12 @@ class TrafficLightManager(
         // 记录接收时间
         lastValidDataTime = System.currentTimeMillis()
 
-        // 验证数据有效性
-        if (!info.isValid()) {
-            Log.d("TrafficLightManager", "收到无效红绿灯数据，忽略")
+        // 检查是否应该显示
+        if (!info.shouldDisplay()) {
+            Log.d("TrafficLightManager", "收到不需要显示的数据，忽略")
+            handler.post {
+                updateCallback(null)
+            }
             return
         }
 
@@ -360,7 +395,7 @@ class TrafficLightManager(
                 val hideDelay = if (info.countdown > 0) {
                     (info.countdown + 5) * 1000L
                 } else {
-                    5000L // 没有倒计时时显示15秒
+                    15000L // 没有倒计时时显示15秒
                 }
 
                 handler.postDelayed(autoHideRunnable, hideDelay)
@@ -412,6 +447,24 @@ class TrafficLightManager(
         waitRound: Int = 0,
         greenLast: Int = 0
     ) {
+        // 检查是否需要显示
+        val shouldDisplay = when {
+            amapStatus == AMAP_STATUS_YELLOW && redCountdown == 0 -> {
+                Log.d("TrafficLightManager", "模拟：黄灯常亮0秒，不显示")
+                false
+            }
+            amapStatus == AMAP_STATUS_TRANSITION && redCountdown == 0 -> {
+                Log.d("TrafficLightManager", "模拟：过渡状态0秒，不显示")
+                false
+            }
+            else -> true
+        }
+
+        if (!shouldDisplay) {
+            handler.post { updateCallback(null) }
+            return
+        }
+
         val testInfo = TrafficLightInfo().apply {
             this.amapStatus = amapStatus
             this.amapDirection = amapDirection

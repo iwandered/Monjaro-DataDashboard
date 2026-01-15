@@ -165,19 +165,23 @@ class DataFragment : Fragment() {
                 return
             }
 
-
-
-            // 设置预览缩放（如果需要）
-            // binding.trafficLightView.setPreviewScale(1.0f)
-
             // 创建红绿灯管理器，严格按照之前分析的高德实现
             trafficLightManager = TrafficLightManager(requireContext()) { trafficLightInfo ->
                 // 在主线程更新UI
                 Handler(Looper.getMainLooper()).post {
                     try {
-                        if (trafficLightInfo != null && trafficLightInfo.isValid() && !trafficLightInfo.isExpired()) {
+                        if (trafficLightInfo != null && trafficLightInfo.shouldDisplay()) {
                             // 显示红绿灯容器
                             binding.trafficLightContainer.visibility = View.VISIBLE
+
+                            // 添加调试日志
+                            if (BuildConfig.DEBUG) {
+                                Log.d("DataFragment", "高德红绿灯数据: " +
+                                        "原始方向=${trafficLightInfo.amapDirection}, " +
+                                        "映射方向=${trafficLightInfo.direction}, " +
+                                        "状态=${getStatusString(trafficLightInfo.status)}, " +
+                                        "倒计时=${trafficLightInfo.countdown}s")
+                            }
 
                             // 更新红绿灯视图状态
                             binding.trafficLightView.updateState(
@@ -281,35 +285,7 @@ class DataFragment : Fragment() {
                     "greenLast" to 3,
                     "waitRound" to 0
                 ),
-                mapOf(
-                    "amapStatus" to 4,
-                    "redCountdown" to 0,
-                    "amapDirection" to 1,
-                    "greenLast" to 3,
-                    "waitRound" to 0
-                ),
-                // 模拟过渡状态（状态=-1，dir=0）
-                mapOf(
-                    "amapStatus" to -1,          // 过渡黄灯
-                    "redCountdown" to 2,         // 短暂倒计时
-                    "amapDirection" to 0,        // 方向为0，应使用历史方向
-                    "greenLast" to 0,
-                    "waitRound" to 0
-                ),
-                mapOf(
-                    "amapStatus" to -1,
-                    "redCountdown" to 1,
-                    "amapDirection" to 0,
-                    "greenLast" to 0,
-                    "waitRound" to 0
-                ),
-                mapOf(
-                    "amapStatus" to -1,
-                    "redCountdown" to 0,
-                    "amapDirection" to 0,
-                    "greenLast" to 0,
-                    "waitRound" to 0
-                ),
+                // 注意：这里不发送0秒的过渡状态，直接跳到红灯
                 // 模拟红灯阶段（状态=1，保持左转方向）
                 mapOf(
                     "amapStatus" to 1,           // 红灯
@@ -346,30 +322,31 @@ class DataFragment : Fragment() {
                     "greenLast" to 0,
                     "waitRound" to 0
                 ),
-                // 测试方向右转
-                mapOf(
-                    "amapStatus" to 1,
-                    "redCountdown" to 45,
-                    "amapDirection" to 2,        // 右转
-                    "greenLast" to 0,
-                    "waitRound" to 0
-                ),
-                // 测试方向直行
+                // 测试方向右转（绿灯倒计时）
                 mapOf(
                     "amapStatus" to 4,
                     "redCountdown" to 20,
+                    "amapDirection" to 2,        // 右转
+                    "greenLast" to 3,
+                    "waitRound" to 0
+                ),
+                // 测试方向直行（绿灯倒计时）
+                mapOf(
+                    "amapStatus" to 4,
+                    "redCountdown" to 15,
                     "amapDirection" to 4,        // 直行
                     "greenLast" to 3,
                     "waitRound" to 0
                 ),
-                // 测试黄灯
+                // 注意：不添加黄灯0秒的测试项
+                // 测试红灯倒计时
                 mapOf(
-                    "amapStatus" to 3,           // 黄灯
-                    "redCountdown" to 0,
-                    "amapDirection" to 4,
+                    "amapStatus" to 1,
+                    "redCountdown" to 45,
+                    "amapDirection" to 4,        // 直行
                     "greenLast" to 0,
                     "waitRound" to 0
-                )
+                ),
             )
 
             override fun run() {
@@ -603,11 +580,11 @@ class DataFragment : Fragment() {
 
         Log.d("DataFragment", "手动触发高德红绿灯测试")
 
-        // 模拟高德绿灯倒计时（左转）
+        // 模拟高德绿灯倒计时（直行）
         trafficLightManager.simulateAmapTrafficLightData(
             amapStatus = 4,          // 绿灯倒计时
             redCountdown = 25,       // 25秒倒计时
-            amapDirection = 1,       // 左转
+            amapDirection = 4,       // 直行
             waitRound = 0,
             greenLast = 3
         )
@@ -618,7 +595,8 @@ class DataFragment : Fragment() {
      */
     fun getTrafficLightState(): Map<String, Any> {
         return mapOf(
-            "visible" to (binding.trafficLightContainer.visibility == View.VISIBLE),
+            "container_visible" to (binding.trafficLightContainer.visibility == View.VISIBLE),
+            "view_visible" to (binding.trafficLightView.visibility == View.VISIBLE),
             "status" to binding.trafficLightView.getCurrentStatus(),
             "countdown" to binding.trafficLightView.getCurrentCountdown(),
             "direction" to binding.trafficLightView.getCurrentDirection(),

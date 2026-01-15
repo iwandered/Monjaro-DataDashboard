@@ -143,7 +143,19 @@ class TrafficLightView @JvmOverloads constructor(
         direction: Int = TrafficLightManager.DIRECTION_STRAIGHT,  // 默认直行(4)
         source: String = ""
     ) {
+        // 黄灯且倒计时为0时不显示
+        if (status == TrafficLightManager.STATUS_YELLOW && countdown == 0) {
+            visibility = View.GONE
+            if (BuildConfig.DEBUG) {
+                Log.d("TrafficLightView", "黄灯0秒，隐藏视图")
+            }
+            return
+        }
 
+        // 添加调试日志
+        if (BuildConfig.DEBUG) {
+            Log.d("TrafficLightView", "updateState: status=$status, countdown=$countdown, direction=$direction")
+        }
 
         // 处理方向：如果有覆盖方向，使用覆盖方向
         val effectiveDirection = if (directionOverride != -1) {
@@ -152,15 +164,6 @@ class TrafficLightView @JvmOverloads constructor(
             // 直接使用传入的方向，不需要复杂的历史方向逻辑
             // 因为TrafficLightManager已经处理了方向映射
             direction
-        }
-
-        // 只记录有效方向（1,2,4）作为历史
-        if (effectiveDirection in listOf(
-                TrafficLightManager.DIRECTION_LEFT,
-                TrafficLightManager.DIRECTION_RIGHT,
-                TrafficLightManager.DIRECTION_STRAIGHT
-            )) {
-            lastValidDirection = effectiveDirection
         }
 
         val timeChanged = this.countdown != countdown
@@ -231,6 +234,11 @@ class TrafficLightView @JvmOverloads constructor(
             return
         }
 
+        // 黄灯且倒计时为0时不绘制
+        if (status == TrafficLightManager.STATUS_YELLOW && countdown == 0) {
+            return
+        }
+
         // 1. 获取状态颜色
         val color = getStatusColor()
 
@@ -265,7 +273,10 @@ class TrafficLightView @JvmOverloads constructor(
             else -> 0f                                     // 默认直行
         }
 
-
+        // 添加调试日志
+        if (BuildConfig.DEBUG) {
+            Log.d("TrafficLightView", "drawDirectionArrow: direction=$direction, rotation=$rotation")
+        }
 
         canvas.rotate(rotation, centerX, centerY)
 
