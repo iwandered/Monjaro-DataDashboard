@@ -360,7 +360,7 @@ class TrafficLightManager(
                 val hideDelay = if (info.countdown > 0) {
                     (info.countdown + 5) * 1000L
                 } else {
-                    15000L // 没有倒计时时显示15秒
+                    5000L // 没有倒计时时显示15秒
                 }
 
                 handler.postDelayed(autoHideRunnable, hideDelay)

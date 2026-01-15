@@ -3,6 +3,7 @@ package ru.monjaro.mconfig
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
 
@@ -40,11 +41,11 @@ class TrafficLightView @JvmOverloads constructor(
     // 红绿灯状态
     private var status = TrafficLightManager.STATUS_NONE
     private var countdown = 0
-    private var direction = TrafficLightManager.DIRECTION_STRAIGHT
+    private var direction = TrafficLightManager.DIRECTION_STRAIGHT  // 使用新的方向定义：4=直行
     private var source = ""
 
     // 历史方向缓存
-    private var lastValidDirection = TrafficLightManager.DIRECTION_STRAIGHT
+    private var lastValidDirection = TrafficLightManager.DIRECTION_STRAIGHT  // 默认为直行(4)
 
     // 尺寸参数（支持缩放）
     private var scale = 1.0f  // 默认缩放比例，但不影响组件大小
@@ -84,8 +85,6 @@ class TrafficLightView @JvmOverloads constructor(
     private var circleCenterY = 0f
     private var textCenterX = 0f
     private var textCenterY = 0f
-
-
 
     // 箭头drawable - 与Java版本保持一致
     private var arrowDrawable: android.graphics.drawable.Drawable? = null
@@ -141,17 +140,27 @@ class TrafficLightView @JvmOverloads constructor(
     fun updateState(
         status: Int,
         countdown: Int,
-        direction: Int = TrafficLightManager.DIRECTION_STRAIGHT,
+        direction: Int = TrafficLightManager.DIRECTION_STRAIGHT,  // 默认直行(4)
         source: String = ""
     ) {
+
+
         // 处理方向：如果有覆盖方向，使用覆盖方向
         val effectiveDirection = if (directionOverride != -1) {
             directionOverride
-        } else if (direction != 0) {
-            lastValidDirection = direction
-            direction
         } else {
-            lastValidDirection
+            // 直接使用传入的方向，不需要复杂的历史方向逻辑
+            // 因为TrafficLightManager已经处理了方向映射
+            direction
+        }
+
+        // 只记录有效方向（1,2,4）作为历史
+        if (effectiveDirection in listOf(
+                TrafficLightManager.DIRECTION_LEFT,
+                TrafficLightManager.DIRECTION_RIGHT,
+                TrafficLightManager.DIRECTION_STRAIGHT
+            )) {
+            lastValidDirection = effectiveDirection
         }
 
         val timeChanged = this.countdown != countdown
@@ -237,29 +246,31 @@ class TrafficLightView @JvmOverloads constructor(
         if (countdown > 0) {
             drawCountdownText(canvas, color)
         }
-
-
     }
 
     /**
-     * 绘制方向箭头
+     * 绘制方向箭头（与Java版本完全一致）
      */
     private fun drawDirectionArrow(canvas: Canvas, centerX: Float, centerY: Float, circleRadius: Float) {
         val drawable = arrowDrawable ?: return
 
         canvas.save()
 
-        // 根据方向旋转（与Java版本一致）
+        // 旋转逻辑与Java版本完全一致
         val rotation = when (direction) {
-            TrafficLightManager.DIRECTION_LEFT -> -90f
-            TrafficLightManager.DIRECTION_RIGHT -> 90f
-            3 -> 180f  // U-turn，如果支持的话
-            else -> 0f  // 直行或其他
+            TrafficLightManager.DIRECTION_LEFT -> -90f      // 左转
+            TrafficLightManager.DIRECTION_RIGHT -> 90f      // 右转
+            3 -> 180f                                       // U-turn
+            0, 4, 5, 6 -> 0f                               // 直行及其他（0和4都是直行）
+            else -> 0f                                     // 默认直行
         }
+
+
+
         canvas.rotate(rotation, centerX, centerY)
 
-        // 箭头大小：基于圆形半径，但使用缩放因子缩小箭头
-        val arrowSize = (circleRadius * ARROW_SCALE_FACTOR * 2).toInt() // 使用缩放因子缩小箭头
+        // 箭头大小：基于圆形半径
+        val arrowSize = (circleRadius * 1.6f).toInt()
         val halfSize = arrowSize / 2
 
         // 设置drawable边界并绘制
@@ -289,23 +300,6 @@ class TrafficLightView @JvmOverloads constructor(
     }
 
     /**
-     * 绘制调试信息
-     */
-    private fun drawDebugInfo(canvas: Canvas) {
-        val debugPaint = Paint().apply {
-            isAntiAlias = true
-            style = Paint.Style.FILL
-            color = 0x80FFFFFF.toInt()
-            textSize = textSize * 0.4f
-            textAlign = Paint.Align.LEFT
-        }
-
-        // 在左上角显示来源和方向
-        val debugText = "$source | ${getDirectionString(direction)}"
-        canvas.drawText(debugText, 5f, debugPaint.textSize + 5, debugPaint)
-    }
-
-    /**
      * 获取状态颜色
      */
     private fun getStatusColor(): Int {
@@ -314,19 +308,6 @@ class TrafficLightView @JvmOverloads constructor(
             TrafficLightManager.STATUS_RED -> COLOR_RED
             TrafficLightManager.STATUS_YELLOW -> COLOR_YELLOW
             else -> COLOR_GREEN
-        }
-    }
-
-    /**
-     * 获取方向字符串
-     */
-    private fun getDirectionString(direction: Int): String {
-        return when (direction) {
-            TrafficLightManager.DIRECTION_STRAIGHT -> "直行"
-            TrafficLightManager.DIRECTION_LEFT -> "左转"
-            TrafficLightManager.DIRECTION_RIGHT -> "右转"
-            3 -> "掉头"
-            else -> "未知"
         }
     }
 
@@ -344,8 +325,6 @@ class TrafficLightView @JvmOverloads constructor(
      * 获取当前方向
      */
     fun getCurrentDirection(): Int = direction
-
-
 
     /**
      * 清理资源
